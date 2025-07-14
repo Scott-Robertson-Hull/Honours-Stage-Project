@@ -2,18 +2,30 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# Define valid API keys and map them to device IDs
+VALID_API_KEYS = {
+    "SECRET-PI-KEY-123": "raspberry-pi-01"
+}
+
 # Endpoint to receive sensor data securely via HTTPS POST
 @app.route('/api/sensor-data', methods=['POST'])
 def receive_sensor_data():
     try:
-        # Parse JSON data sent from the client
+        # Step 1: Extract and validate API key
+        api_key = request.headers.get("Authorization", "").replace("Bearer ", "")
+        if api_key not in VALID_API_KEYS:
+            return jsonify({"error": "Unauthorized - invalid API key"}), 401
+        
+        device_id = VALID_API_KEYS[api_key]
+
+        # Step 2: Parse JSON data
         data = request.get_json()
 
-        # Basic validation to ensure both fields exist and are correct types
+        # Step 3: Validate the data format
         if ('temperature' in data and isinstance(data['temperature'], (float, int)) and
             'humidity' in data and isinstance(data['humidity'], (float, int))):
 
-            print(f"Received data: {data}")
+            print(f"Received data from {device_id}: {data}")
 
             # Respond positively if data is valid
             return jsonify({"message": "Data received successfully!"}), 200
