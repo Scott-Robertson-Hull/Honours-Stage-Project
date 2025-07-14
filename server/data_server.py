@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify
+import csv
+from datetime import datetime  # For timestamping log entries
 
 app = Flask(__name__)
 
@@ -27,7 +29,17 @@ def receive_sensor_data():
 
             print(f"Received data from {device_id}: {data}")
 
-            # Respond positively if data is valid
+            # Step 4: Log to CSV file
+            with open("logs.csv", mode="a", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow([
+                    datetime.now().isoformat(),  # Timestamp
+                    device_id,                  # Which device sent it
+                    data['temperature'],
+                    data['humidity']
+                ])
+
+            # Step 5: Respond positively
             return jsonify({"message": "Data received successfully!"}), 200
         else:
             # Respond negatively if validation fails
