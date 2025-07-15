@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
 import csv
-from datetime import datetime  # For timestamping log entries
+from datetime import datetime
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 import base64
+import json
 
 app = Flask(__name__)
 
@@ -30,43 +31,50 @@ def receive_sensor_data():
 
         # Step 2: Parse JSON data
         data = request.get_json()
+        if not all(k in data for k in ("signed_data", "signature")):
+            return jsonify({"error": "Missing signed_data or signature"}), 400
 
-        # Step 3: Validate data format (temperature, humidity, signature)
-        if ('temperature' in data and isinstance(data['temperature'], (float, int)) and
-            'humidity' in data and isinstance(data['humidity'], (float, int)) and
-            'signature' in data):
+        signed_data = data["signed_data"]
+        signature = base64.b64decode(data["signature"])
 
-            # Step 4: Reconstruct the message and verify the signature
-            message = f"{data['temperature']},{data['humidity']}".encode()
-            signature = base64.b64decode(data['signature'])
+        # Step 3: Verify the signature
+        try:
+            PUBLIC_KEY.verify(
+                signature,
+                signed_data.encode("utf-8"),
+                padding.PKCS1v15(),
+                hashes.SHA256()
+            )
+        except InvalidSignature:
+            return jsonify({"error": "Invalid digital signature"}), 403
 
-            try:
-                PUBLIC_KEY.verify(
-                    signature,
-                    message,
-                    padding.PKCS1v15(),
-                    hashes.SHA256()
-                )
-            except InvalidSignature:
-                return jsonify({"error": "Invalid digital signature"}), 403
+        # Step 4: Parse the signed JSON string into usable data
+        try:
+            payload = json.loads(signed_data)
+        except Exception:
+            return jsonify({"error": "Malformed signed_data content"}), 400
 
-            print(f"Verified data from {device_id}: {data}")
+        # Step 5: Validate temperature and humidity fields
+        if ('temperature' in payload and isinstance(payload['temperature'], (float, int)) and
+            'humidity' in payload and isinstance(payload['humidity'], (float, int))):
 
-            # Step 5: Log to CSV
+            print(f"Verified data from {device_id}: {payload}")
+
+            # Step 6: Log to CSV
             with open("logs.csv", mode="a", newline="") as file:
                 writer = csv.writer(file)
                 writer.writerow([
-                    datetime.now().isoformat(),  # Timestamp
-                    device_id,                  # Which device sent it
-                    data['temperature'],
-                    data['humidity']
+                    datetime.now().isoformat(),
+                    device_id,
+                    payload['temperature'],
+                    payload['humidity']
                 ])
 
             # Step 6: Respond positively
             return jsonify({"message": "Data received and verified successfully!"}), 200
+
         else:
-            # Respond negatively if validation fails
-            return jsonify({"error": "Invalid data format"}), 400
+            return jsonify({"error": "Missing or invalid temperature/humidity"}), 400
 
     except Exception as e:
         # Catch-all for unexpected errors
