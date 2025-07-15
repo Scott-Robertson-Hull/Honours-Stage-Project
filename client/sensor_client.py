@@ -2,41 +2,67 @@ import requests
 import json
 import random
 import time
+import base64
+import datetime
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
 
 API_KEY = "SECRET-PI-KEY-123"
+DEVICE_ID = "raspberry-pi-01"
+
+# Load private key for signing
+with open("client/private_key.pem", "rb") as key_file:
+    private_key = serialization.load_pem_private_key(
+        key_file.read(),
+        password=None,
+        backend=default_backend()
+    )
 
 # URL of the server, my raspberry pi's local IP address in this instance
 SERVER_URL = 'https://192.168.0.25:5000/api/sensor-data'
 
-
 # Simulated sensor data function
 def generate_sensor_data():
-    # Simulate temperature and humidity readings
-    data = {
-        'temperature': round(random.uniform(20.0, 30.0), 2),  # e.g., 25.47°C
-        'humidity': round(random.uniform(30.0, 70.0), 2)      # e.g., 55.12%
+    return {
+        'temperature': round(random.uniform(20.0, 30.0), 2),
+        'humidity': round(random.uniform(30.0, 70.0), 2),
+        'timestamp': datetime.datetime.utcnow().isoformat(),
+        'device_id': DEVICE_ID
     }
-    return data
 
 # Main function to send data securely
 def send_sensor_data():
     data = generate_sensor_data()
     print(f"Sending data: {data}")
 
+    # Sign the message
+    message = json.dumps(data, separators=(',', ':'), sort_keys=True).encode('utf-8')
+    signature = private_key.sign(
+        message,
+        padding.PKCS1v15(),
+        hashes.SHA256()
+    )
+    encoded_signature = base64.b64encode(signature).decode('utf-8')
+
+    payload = {
+        'data': data,
+        'signature': encoded_signature
+    }
+
     try:
         headers = {
-        "Authorization": f"Bearer {API_KEY}"
+            "Authorization": f"Bearer {API_KEY}"
         }
-        
-        # Convert data dictionary to JSON format and send it over HTTPS
+
         response = requests.post(
-            SERVER_URL, 
-            json=data,
+            SERVER_URL,
+            json=payload,
             headers=headers,
-            timeout=10,  # 10-second timeout
+            timeout=10,
             verify=False  # This bypasses SSL verification (because of ad-hoc cert)
         )
-
+        
         # Check response status code (200 means success)
         if response.status_code == 200:
             print(f"Data sent successfully. Server response: {response.text}")
