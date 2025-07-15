@@ -12,7 +12,7 @@ API_KEY = "SECRET-PI-KEY-123"
 DEVICE_ID = "raspberry-pi-01"
 
 # Load private key for signing
-with open("client/private_key.pem", "rb") as key_file:
+with open("private_key.pem", "rb") as key_file:
     private_key = serialization.load_pem_private_key(
         key_file.read(),
         password=None,
@@ -36,18 +36,24 @@ def send_sensor_data():
     data = generate_sensor_data()
     print(f"Sending data: {data}")
 
-    # Sign the message
-    message = json.dumps(data, separators=(',', ':'), sort_keys=True).encode('utf-8')
+    # Prepare the signed_data as a JSON string (only temperature and humidity)
+    signed_data = json.dumps({
+        "temperature": data["temperature"],
+        "humidity": data["humidity"]
+    })
+
+    # Sign the JSON string
     signature = private_key.sign(
-        message,
+        signed_data.encode("utf-8"),
         padding.PKCS1v15(),
         hashes.SHA256()
     )
     encoded_signature = base64.b64encode(signature).decode('utf-8')
 
+    # Payload matches server expectations
     payload = {
-        'data': data,
-        'signature': encoded_signature
+        "signed_data": signed_data,
+        "signature": encoded_signature
     }
 
     try:
@@ -62,16 +68,16 @@ def send_sensor_data():
             timeout=10,
             verify=False  # This bypasses SSL verification (because of ad-hoc cert)
         )
-        
-        # Check response status code (200 means success)
+
         if response.status_code == 200:
             print(f"Data sent successfully. Server response: {response.text}")
         else:
-            print(f"Failed to send data. Server responded with status code: {response.status_code}")
+            print(f"Failed to send data. Server responded with status code: {response.status_code} - {response.text}")
 
     except requests.exceptions.RequestException as e:
         # Handle exceptions (network errors, timeout, SSL issues, etc.)
         print(f"Error sending data: {e}")
+
 
 # Continuously send data every 10 seconds
 if __name__ == "__main__":
