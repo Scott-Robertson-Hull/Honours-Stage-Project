@@ -1,8 +1,16 @@
 from flask import Flask, request, jsonify
 import csv
 from datetime import datetime  # For timestamping log entries
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.exceptions import InvalidSignature
+import base64
 
 app = Flask(__name__)
+
+# Load the RSA public key once at startup
+with open("public_key.pem", "rb") as key_file:
+    PUBLIC_KEY = serialization.load_pem_public_key(key_file.read())
 
 # Define valid API keys and map them to device IDs
 VALID_API_KEYS = {
@@ -23,13 +31,28 @@ def receive_sensor_data():
         # Step 2: Parse JSON data
         data = request.get_json()
 
-        # Step 3: Validate the data format
+        # Step 3: Validate data format (temperature, humidity, signature)
         if ('temperature' in data and isinstance(data['temperature'], (float, int)) and
-            'humidity' in data and isinstance(data['humidity'], (float, int))):
+            'humidity' in data and isinstance(data['humidity'], (float, int)) and
+            'signature' in data):
 
-            print(f"Received data from {device_id}: {data}")
+            # Step 4: Reconstruct the message and verify the signature
+            message = f"{data['temperature']},{data['humidity']}".encode()
+            signature = base64.b64decode(data['signature'])
 
-            # Step 4: Log to CSV file
+            try:
+                PUBLIC_KEY.verify(
+                    signature,
+                    message,
+                    padding.PKCS1v15(),
+                    hashes.SHA256()
+                )
+            except InvalidSignature:
+                return jsonify({"error": "Invalid digital signature"}), 403
+
+            print(f"Verified data from {device_id}: {data}")
+
+            # Step 5: Log to CSV
             with open("logs.csv", mode="a", newline="") as file:
                 writer = csv.writer(file)
                 writer.writerow([
@@ -39,8 +62,8 @@ def receive_sensor_data():
                     data['humidity']
                 ])
 
-            # Step 5: Respond positively
-            return jsonify({"message": "Data received successfully!"}), 200
+            # Step 6: Respond positively
+            return jsonify({"message": "Data received and verified successfully!"}), 200
         else:
             # Respond negatively if validation fails
             return jsonify({"error": "Invalid data format"}), 400
