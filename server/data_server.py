@@ -83,5 +83,9 @@ def receive_sensor_data():
 
 # Run the Flask server with SSL (HTTPS)
 if __name__ == "__main__":
-    # Note: For real projects a proper certificate would be used here.
-    app.run(host='0.0.0.0', port=5000, ssl_context='adhoc')
+    # Use the self-signed certificate and key found in server.crt and server.key
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        ssl_context=('server.crt', 'server.key')
+    )

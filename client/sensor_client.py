@@ -66,7 +66,7 @@ def send_sensor_data():
             json=payload,
             headers=headers,
             timeout=10,
-            verify=False  # This bypasses SSL verification (because of ad-hoc cert)
+            verify="server.crt"  # Use the server's certificate for verification
         )
 
         if response.status_code == 200:
