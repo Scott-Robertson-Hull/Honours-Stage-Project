@@ -6,10 +6,11 @@ distinguished_name = dn
 req_extensions = req_ext
 
 [dn]
-CN = 192.168.0.25
+CN = 192.168.0.20
 
 [req_ext]
 subjectAltName = @alt_names
 
 [alt_names]
-IP.1 = 192.168.0.25
+IP.1 = 192.168.0.20
+IP.2 = 192.168.0.25

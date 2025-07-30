@@ -20,7 +20,7 @@ with open("private_key.pem", "rb") as key_file:
     )
 
 # URL of the server, my raspberry pi's local IP address in this instance
-SERVER_URL = 'https://192.168.0.25:5000/api/sensor-data'
+SERVER_URL = 'https://192.168.0.20:5000/api/sensor-data'
 
 # Simulated sensor data function
 def generate_sensor_data():
