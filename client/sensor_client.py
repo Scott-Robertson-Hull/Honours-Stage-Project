@@ -56,6 +56,12 @@ def send_sensor_data():
         "signature": encoded_signature
     }
 
+    # TC-4: Tamper with the signed_data after signing 
+    # payload["signed_data"] = json.dumps({
+    #    "temperature": 999,  # Tampered value
+    #    "humidity": data["humidity"]
+    #})
+
     try:
         headers = {
             "Authorization": f"Bearer {API_KEY}"
